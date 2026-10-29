@@ -1,0 +1,6 @@
+url,label
+https://example.com,0
+http://account-verify-login-example.invalid/signin,1
+https://xn--example-ova.invalid,1
+http://192.0.2.10/verify-account,1
+https://www.wikipedia.org,0

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CyberShield URL Scanner</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="logo">CS</div>
+      <div><p class="eyebrow">LOCAL CYBERSECURITY TOOL</p><h1>CyberShield</h1><p class="sub">URL phishing risk scanner</p></div>
+    </header>
+    <section class="panel">
+      <h2>Scan a URL</h2>
+      <p>Paste a website address to check for common phishing warning signs.</p>
+      <form id="scan-form">
+        <label for="url">Website URL</label>
+        <div class="input-row"><input id="url" name="url" type="text" placeholder="https://example.com/login" autocomplete="url" required maxlength="4096"><button type="submit">Scan URL</button></div>
+      </form>
+      <p class="privacy">Your URL is analyzed locally by this computer. The scanner does not visit or open the submitted site.</p>
+      <div id="status" role="status" aria-live="polite"></div>
+      <section id="result" class="result hidden" aria-live="polite">
+        <div class="result-top"><div><p class="eyebrow">SCAN RESULT</p><h2 id="label">—</h2></div><div class="score"><strong id="score">0</strong><span>/100 risk</span></div></div>
+        <p class="host" id="host"></p>
+        <h3>Why was it scored this way?</h3><ul id="reasons"></ul>
+        <p class="disclaimer" id="disclaimer"></p>
+      </section>
+    </section>
+    <footer>CyberShield prototype · Offline heuristic checks · Not a guarantee of safety</footer>
+  </main>
+  <script>
+    const form = document.getElementById('scan-form');
+    const statusBox = document.getElementById('status');
+    const result = document.getElementById('result');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      statusBox.textContent = 'Scanning…';
+      result.classList.add('hidden');
+      try {
+        const response = await fetch('/api/scan', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({url: document.getElementById('url').value})
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not scan URL.');
+        document.getElementById('label').textContent = data.label;
+        document.getElementById('label').className = data.label === 'HIGH RISK' ? 'high' : data.label === 'SUSPICIOUS' ? 'medium' : 'low';
+        document.getElementById('score').textContent = data.risk_score;
+        document.getElementById('host').textContent = data.hostname;
+        const list = document.getElementById('reasons');
+        list.replaceChildren();
+        data.reasons.forEach(reason => { const li = document.createElement('li'); li.textContent = reason; list.appendChild(li); });
+        document.getElementById('disclaimer').textContent = data.disclaimer;
+        result.classList.remove('hidden');
+        statusBox.textContent = '';
+      } catch (error) { statusBox.textContent = error.message; }
+    });
+  </script>
+</body>
+</html>
