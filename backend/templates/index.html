@@ -5,12 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CyberShield URL Scanner</title>
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .details { margin-top: 20px; }
+    .details h3 { margin-bottom: 10px; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+    .detail-item { padding: 12px 14px; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; background: rgba(148, 163, 184, 0.06); }
+    .detail-item .k { display: block; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin-bottom: 4px; }
+    .detail-item .v { font-size: 0.98rem; word-break: break-word; }
+    .detail-note { margin-top: 10px; font-size: 0.85rem; opacity: 0.7; }
+  </style>
 </head>
 <body>
   <main class="shell">
     <header>
       <div class="logo">CS</div>
-      <div><p class="eyebrow">LOCAL CYBERSECURITY TOOL</p><h1>CyberShield</h1><p class="sub">URL phishing risk scanner</p></div>
+      <div><p class="eyebrow">CYBERSECURITY TOOL</p><h1>CyberShield</h1><p class="sub">URL phishing risk scanner</p></div>
     </header>
     <section class="panel">
       <h2>Scan a URL</h2>
@@ -19,25 +28,73 @@
         <label for="url">Website URL</label>
         <div class="input-row"><input id="url" name="url" type="text" placeholder="https://example.com/login" autocomplete="url" required maxlength="4096"><button type="submit">Scan URL</button></div>
       </form>
-      <p class="privacy">Your URL is analyzed locally by this computer. The scanner does not visit or open the submitted site.</p>
+      <p class="privacy">The scanner never visits or opens the submitted site. To build the report it looks up the domain's DNS record, registration date and server location, and may check Google Safe Browsing.</p>
       <div id="status" role="status" aria-live="polite"></div>
       <section id="result" class="result hidden" aria-live="polite">
         <div class="result-top"><div><p class="eyebrow">SCAN RESULT</p><h2 id="label">—</h2></div><div class="score"><strong id="score">0</strong><span>/100 risk</span></div></div>
         <p class="host" id="host"></p>
         <h3>Why was it scored this way?</h3><ul id="reasons"></ul>
+        <div id="details" class="details hidden">
+          <h3>Site information</h3>
+          <div id="detail-grid" class="detail-grid"></div>
+          <p id="detail-note" class="detail-note"></p>
+        </div>
         <p class="disclaimer" id="disclaimer"></p>
       </section>
     </section>
-    <footer>CyberShield prototype · Offline heuristic checks · Not a guarantee of safety</footer>
+    <footer>CyberShield prototype · Heuristic and online reputation checks · Not a guarantee of safety</footer>
   </main>
   <script>
     const form = document.getElementById('scan-form');
     const statusBox = document.getElementById('status');
     const result = document.getElementById('result');
+    const button = form.querySelector('button');
+
+    function formatAge(days) {
+      if (days === null || days === undefined) return 'Unknown';
+      if (days < 1) return 'Registered today';
+      if (days < 60) return days + ' day' + (days === 1 ? '' : 's');
+      if (days < 730) return Math.round(days / 30) + ' months';
+      return (days / 365).toFixed(1) + ' years';
+    }
+
+    function renderDetails(d) {
+      const box = document.getElementById('details');
+      const grid = document.getElementById('detail-grid');
+      const note = document.getElementById('detail-note');
+      grid.replaceChildren();
+      note.textContent = '';
+      if (!d) { box.classList.add('hidden'); return; }
+
+      const loc = d.location || null;
+      const place = loc ? [loc.city, loc.region, loc.country].filter(Boolean).join(', ') : 'Unavailable';
+      const items = [
+        ['Server location', place || 'Unavailable'],
+        ['Hosting provider', loc ? (loc.isp || loc.org || 'Unknown') : 'Unavailable'],
+        ['Network (ASN)', loc && loc.asn ? loc.asn : 'Unavailable'],
+        ['Server IP', d.resolved_ip || 'Could not resolve'],
+        ['Domain age', formatAge(d.domain_age_days)],
+        ['Google Safe Browsing', d.safe_browsing === 'flagged' ? 'Flagged as dangerous'
+                                : d.safe_browsing === 'no match' ? 'No match' : 'Not checked']
+      ];
+      items.forEach(([k, v]) => {
+        const item = document.createElement('div');
+        item.className = 'detail-item';
+        const key = document.createElement('span'); key.className = 'k'; key.textContent = k;
+        const val = document.createElement('span'); val.className = 'v'; val.textContent = v;
+        item.append(key, val);
+        grid.appendChild(item);
+      });
+      note.textContent = (d.hosting_note ? d.hosting_note + ' ' : '') +
+        'Location shows where the server is, not who runs the site; many legitimate sites use CDNs abroad.';
+      box.classList.remove('hidden');
+    }
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      statusBox.textContent = 'Scanning…';
+      statusBox.textContent = 'Scanning… (this can take a few seconds)';
       result.classList.add('hidden');
+      button.disabled = true;
       try {
         const response = await fetch('/api/scan', {
           method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -52,10 +109,15 @@
         const list = document.getElementById('reasons');
         list.replaceChildren();
         data.reasons.forEach(reason => { const li = document.createElement('li'); li.textContent = reason; list.appendChild(li); });
+        renderDetails(data.details);
         document.getElementById('disclaimer').textContent = data.disclaimer;
         result.classList.remove('hidden');
         statusBox.textContent = '';
-      } catch (error) { statusBox.textContent = error.message; }
+      } catch (error) {
+        statusBox.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
     });
   </script>
 </body>
